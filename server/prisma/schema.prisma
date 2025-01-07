@@ -1,0 +1,61 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model DappGen {
+  id        String     @id @default(uuid())
+  userId    String
+  prompt1   String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  steps     GenSteps[]
+  messages  Messages[]
+}
+
+model GenSteps {
+  id               String    @id @default(uuid())
+  stepNumber       Int?
+  command          String?
+  output           String?
+  classification   String?
+  stepNotes        String?
+  terminalCommands String?
+  status           String?
+  startDateTime    DateTime?
+  endDateTime      DateTime?
+  dappGen          DappGen   @relation(fields: [genId], references: [id])
+  genId            String
+  agentId          String?
+  Agent            Agent?    @relation(fields: [agentId], references: [id])
+}
+
+model Agent {
+  id           String     @id @default(uuid())
+  name         String
+  description  String?
+  imageUrl     String?
+  systemPrompt String?
+  modelName    String
+  vendor       String
+  steps        GenSteps[]
+}
+
+model Messages {
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now())
+  role      String   // 'user' or 'assistant'
+  dappGen   DappGen  @relation(fields: [genId], references: [id])
+  genId     String
+}
