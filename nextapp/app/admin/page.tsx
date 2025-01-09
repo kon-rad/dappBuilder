@@ -10,7 +10,7 @@ export default function AdminPage() {
 
   const handleSubmit = async () => {
     try {
-      const response = await fetch("/api/githubloader", {
+      const response = await fetch("/api/github-loader", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -30,9 +30,9 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
-      <div className="space-y-4">
-        <div className="space-y-2">
+    <div className="p-8 max-w-2xl mx-auto mt-26">
+      <div className="space-y-4 pt-26">
+        <div className="space-y-2 mt-24">
           <Label htmlFor="github-url">GitHub Repository URL</Label>
           <Input
             id="github-url"

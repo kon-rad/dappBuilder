@@ -1,36 +1,49 @@
 import { NextResponse } from 'next/server';
-import { Configuration, OpenAIApi } from 'openai';
-import { getVectraClient } from '@/lib/vectra';
+import Together from "together-ai";
+import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
+import { createClient } from "@supabase/supabase-js";
+import { OpenAIEmbeddings } from "@langchain/openai";
 
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
+// Supabase configuration
+const privateKey = process.env.SUPABASE_SERVICE_KEY;
+if (!privateKey) throw new Error(`Expected env var SUPABASE_SERVICE_KEY`);
+
+const url = process.env.SUPABASE_URL;
+if (!url) throw new Error(`Expected env var SUPABASE_URL`);
+
+const together = new Together({
+  apiKey: process.env.TOGETHER_API_KEY,
 });
 
-const openai = new OpenAIApi(configuration);
-
-export async function POST(request: Request) {
+export const POST = async (request: Request) => {
   try {
     const { message } = await request.json();
+    console.log('Received message:', message);
     
-    // Get embedding for the query
-    const response = await openai.createEmbedding({
-      model: "text-embedding-ada-002",
-      input: message,
+    // Initialize Supabase client and vector store
+    const client = createClient(url, privateKey);
+    const vectorStore = new SupabaseVectorStore(new OpenAIEmbeddings(), {
+      client,
+      tableName: "dappbuilder",
+      queryName: "match_dappbuilder",
     });
-    const embedding = response.data.data[0].embedding;
 
-    // Get Vectra client and query
-    const vectraClient = await getVectraClient();
-    const results = await vectraClient.queryItems(embedding, 3);
+    // Query the vector store
+    console.log('Querying Supabase...');
+    const results = await vectorStore.similaritySearch(message, 3);
+    console.log('Supabase results:', results.length, 'items found');
 
     // Format context from results
     const context = results
-      .map(result => result.item.metadata.text)
+      .map(doc => doc.pageContent)
       .join('\n\n');
+    console.log('Formatted context length:', context.length, 'characters');
+    console.log('Formatted context:', context, '');
 
-    // Get completion from OpenAI
-    const completion = await openai.createChatCompletion({
-      model: "gpt-4",
+    // Get completion from Together AI
+    console.log('Requesting completion from Together AI...');
+    const completion = await together.chat.completions.create({
+      model: "mistralai/Mixtral-8x7B-Instruct-v0.1",
       messages: [
         {
           role: "system",
@@ -39,13 +52,14 @@ export async function POST(request: Request) {
         { role: "user", content: message },
       ],
     });
+    console.log('Received completion response');
 
     return NextResponse.json({ 
-      response: completion.data.choices[0].message?.content 
+      response: completion.choices[0].message.content 
     });
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error details:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -71,7 +71,7 @@ export default function DappPage({ params }: { params: { id: string } }) {
   }
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen mt-26">
       {/* Chat Panel - 1/3 width */}
       <div className="w-1/3 border-r p-4 bg-gray-50">
         <h2 className="text-2xl font-bold mb-4">Chat</h2>

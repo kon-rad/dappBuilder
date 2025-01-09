@@ -46,7 +46,7 @@ export default function KnowledgeBasePage() {
   };
 
   return (
-    <div className="container mx-auto max-w-4xl p-4">
+    <div className="container mx-auto max-w-4xl p-4 mt-24">
       <h1 className="text-3xl font-bold mb-8">Starknet Knowledge Base</h1>
       
       <div className="bg-gray-50 rounded-lg p-4 min-h-[400px] mb-4">
