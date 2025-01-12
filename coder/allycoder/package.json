@@ -1,0 +1,62 @@
+{
+  "name": "allycoder",
+  "displayName": "AllyCoder",
+  "description": "",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.84.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "allycoder-sidebar",
+          "title": "AllyCoder",
+          "icon": "$(heart)"
+        }
+      ]
+    },
+    "views": {
+      "allycoder-sidebar": [
+        {
+          "type": "webview",
+          "id": "fileViewer",
+          "name": "App Creator",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "allycoder.createApp",
+        "title": "Create New App"
+      },
+      {
+        "command": "allycoder.start",
+        "title": "Start Ally Coder"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "18.x",
+    "@types/vscode": "^1.84.0",
+    "@typescript-eslint/eslint-plugin": "^6.9.0",
+    "@typescript-eslint/parser": "^6.9.0",
+    "eslint": "^8.52.0",
+    "typescript": "^5.2.2"
+  }
+}

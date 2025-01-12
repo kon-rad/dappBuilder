@@ -1,4 +1,5 @@
 import { PromptForm } from "@/components/prompt-form"
+import { NextAppForm } from "@/components/next-app-form"
 
 export default function Home() {
   return (
@@ -59,6 +60,17 @@ export default function Home() {
           </div>
 
           <PromptForm />
+
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-gray-300"></span>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 text-gray-500 bg-white">or create a Next.js app directly</span>
+            </div>
+          </div>
+
+          <NextAppForm />
         </div>
       </main>
       <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">

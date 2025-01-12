@@ -30,7 +30,7 @@ export const POST = async (request: Request) => {
 
     // Query the vector store
     console.log('Querying Supabase...');
-    const results = await vectorStore.similaritySearch(message, 3);
+    const results = await vectorStore.similaritySearch(message, 20);
     console.log('Supabase results:', results.length, 'items found');
 
     // Format context from results

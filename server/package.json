@@ -10,14 +10,21 @@
   "dependencies": {
     "@prisma/client": "^6.1.0",
     "cors": "^2.8.5",
+    "digitalocean": "^1.2.1",
+    "do-wrapper": "^4.5.1",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
-    "prisma": "^6.1.0"
+    "node-ssh": "^13.2.0",
+    "prisma": "^6.1.0",
+    "ssh2": "^1.16.0",
+    "ssh2-promise": "^1.0.3",
+    "together-ai": "^0.11.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.13",
     "@types/express": "^4.17.17",
     "@types/node": "^18.15.11",
+    "@types/ssh2": "^1.15.3",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.0.4"
   }

@@ -12,6 +12,7 @@
     "@langchain/community": "^0.3.23",
     "@langchain/core": "^0.3.27",
     "@langchain/openai": "^0.3.16",
+    "@prisma/client": "^6.2.1",
     "@radix-ui/react-label": "^2.1.1",
     "@radix-ui/react-slot": "^1.1.1",
     "@supabase/supabase-js": "^2.47.12",
