@@ -1,10 +1,9 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { exec } from 'child_process';
 import { PrismaClient } from '@prisma/client';
-import { ManagerAgent, DeveloperAgent } from './agents';
 import { HelloWorldService } from './services/HelloWorldService';
+import { DappGenV1Service } from './services/DappGenV1Service';
 
 // Define interfaces
 interface CreateDappRequest extends Request {
@@ -83,15 +82,35 @@ app.post('/api/create-dapp', validateApiKey, async (req: CreateDappRequest, res:
       },
     });
 
-    // Start the event loop asynchronously
-    processAgentLoop(dappGen.id, prompt).catch(error => {
-      console.error('Agent loop failed:', error);
+    // Initialize DappGenV1Service
+    const dappGenService = new DappGenV1Service();
+    
+    // Generate Next.js index content using AI
+    const indexContent = await dappGenService.generateIndexContent(prompt);
+    console.log('indexContent: ', indexContent);
+    
+    
+    // Execute bash script with the generated content
+    const result = await dappGenService.executeSetupScript(indexContent);
+
+    // Update dapp status
+    await prisma.dappGen.update({
+      where: { id: dappGen.id },
+      data: {
+        status: 'COMPLETED',
+        messages: {
+          create: {
+            content: result,
+            role: 'system'
+          }
+        }
+      }
     });
 
-    // Respond immediately with the dappGen ID
     return res.json({ 
-      message: 'DApp generation started',
-      dappGenId: dappGen.id
+      message: 'DApp generation completed',
+      dappGenId: dappGen.id,
+      result
     });
 
   } catch (error) {
@@ -100,178 +119,6 @@ app.post('/api/create-dapp', validateApiKey, async (req: CreateDappRequest, res:
   }
 });
 
-async function processAgentLoop(dappGenId: string, objective: string, previousOutput: string = '') {
-  console.log(`Starting agent loop for dappGenId: ${dappGenId}`);
-  const manager = new ManagerAgent();
-  const developer = new DeveloperAgent();
-  
-  try {
-    // Create new GenStep for this iteration
-    console.log('Creating new GenStep...');
-    const genStep = await prisma.genSteps.create({
-      data: {
-        genId: dappGenId,
-        stepNumber: await getNextStepNumber(dappGenId),
-        status: 'RUNNING',
-        startDateTime: new Date(),
-        classification: 'agent_execution',
-        stepNotes: 'Processing agent action',
-      },
-    });
-    console.log(`Created GenStep with ID: ${genStep.id}`);
-
-    // Get next instruction from manager
-    console.log('Getting next instruction from manager...');
-    const instruction = await manager.getNextAction(objective, previousOutput);
-    console.log('Manager instruction:', instruction);
-    
-    // Log manager's instruction in Messages
-    console.log('Logging manager message...');
-    await prisma.messages.create({
-      data: {
-        genId: dappGenId,
-        content: instruction,
-        role: 'manager'
-      }
-    });
-
-    // Get terminal commands from developer
-    console.log('Getting terminal commands from developer...');
-    const terminalCommands = await developer.executeInstruction(instruction);
-    console.log('Developer commands:', terminalCommands);
-    
-    // Replace the interactive create-next-app command with a non-interactive version
-    const modifiedCommands = terminalCommands.replace(
-      'npx create-next-app@latest my-app',
-      'npx create-next-app@latest my-app --typescript=false --tailwind=false --eslint=false --app=false --src-dir=false --import-alias="@/*" --use-npm'
-    );
-    
-    // Split commands and clean them up
-    const commandsArray = modifiedCommands
-      .split('&&')
-      .map(cmd => cmd.trim().replace(/\\\n/g, ''))
-      .filter(cmd => cmd.length > 0);
-    
-    console.log('Executing commands separately:', commandsArray);
-    
-    let output = '';
-    for (const command of commandsArray) {
-      console.log(`Executing command: ${command}`);
-      try {
-        const commandOutput = await executeAction(command);
-        output += `\n${commandOutput}`;
-        console.log(`Command output: ${commandOutput}`);
-      } catch (error) {
-        console.error(`Error executing command ${command}:`, error);
-        output += `\nError executing command: ${error.message}`;
-      }
-    }
-
-    // Add a delay between commands to ensure proper sequencing
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Classify the output
-    console.log('Classifying output...');
-    const classification = await manager.classify(output);
-    console.log('Classification:', classification);
-    
-    // Update GenStep with results
-    await prisma.genSteps.update({
-      where: { id: genStep.id },
-      data: {
-        status: 'COMPLETED',
-        output: output,
-        terminalCommands: terminalCommands,
-        classification: classification,
-        endDateTime: new Date(),
-      },
-    });
-
-    // Log the execution output in Messages
-    await prisma.messages.create({
-      data: {
-        genId: dappGenId,
-        content: output,
-        role: 'system'
-      }
-    });
-
-    // Evaluate the result
-    console.log('Evaluating result...');
-    const evaluation = await manager.evaluate(output, objective);
-    console.log('Evaluation result:', evaluation);
-
-    // Continue loop or complete based on evaluation
-    if (evaluation.success) {
-      console.log('Evaluation successful, continuing loop...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return processAgentLoop(dappGenId, objective, output);
-    } else {
-      console.log('Evaluation complete, finishing process...');
-      await prisma.dappGen.update({
-        where: { id: dappGenId },
-        data: {
-          status: 'COMPLETED'
-        },
-      });
-    }
-
-  } catch (error) {
-    console.error('Agent loop error:', error);
-    console.log('Updating DappGen status to ERROR...');
-    await prisma.dappGen.update({
-      where: { id: dappGenId },
-      data: {
-        status: 'ERROR'
-      },
-    });
-  }
-}
-
-async function getNextStepNumber(dappGenId: string): Promise<number> {
-  const lastStep = await prisma.genSteps.findFirst({
-    where: { genId: dappGenId },
-    orderBy: { stepNumber: 'desc' },
-  });
-  return (lastStep?.stepNumber ?? 0) + 1;
-}
-
-async function executeAction(action: string): Promise<string> {
-  // Check for development server commands
-  if (action.includes('npm run dev') || action.includes('npm start') || action.includes('yarn dev')) {
-    if (process.platform !== 'darwin') {
-      return 'Opening dev server in new terminal is only supported on macOS';
-    }
-
-    const terminalCommand = `osascript -e 'tell app "Terminal" to do script "cd ${process.cwd()} && ${action}"'`;
-    console.log(`Opening dev server in new terminal: ${terminalCommand}`);
-    
-    return new Promise((resolve, reject) => {
-      exec(terminalCommand, (error, stdout, stderr) => {
-        console.log('stdout, stderr', stdout, stderr);
-        
-        if (error) {
-          console.error('Error opening dev server:', error);
-          reject(error);
-        }
-        resolve('Development server started in new terminal window');
-      });
-    });
-  }
-
-  // For non-dev server commands, execute normally
-  return new Promise((resolve, reject) => {
-    exec(action, {
-      timeout: 60000,
-      maxBuffer: 1024 * 1024 * 10
-    }, (error, stdout, stderr) => {
-      if (error) {
-        reject(error);
-      }
-      resolve(stdout || stderr);
-    });
-  });
-}
 
 // Add new POST endpoint for fetching GenSteps
 app.post('/api/gendapp', validateApiKey, async (req: Request, res: Response) => {
