@@ -45,7 +45,7 @@ export const POST = async (request: Request) => {
     const completion = await together.chat.completions.create({
       model: "mistralai/Mixtral-8x7B-Instruct-v0.1",
       messages: [
-        {
+        { 
           role: "system",
           content: `You are a helpful assistant. Use the following context to answer the question: ${context}`,
         },

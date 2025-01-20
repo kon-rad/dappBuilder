@@ -2,6 +2,7 @@ import { exec } from 'child_process';
 import Together from "together-ai";
 import fs from 'fs/promises';
 import path from 'path';
+import { existingContractCode } from '../constants/contracts';
 
 export class DappGenV1Service {
   private readonly together: Together;
@@ -130,6 +131,21 @@ main() {
 # Execute main function with provided arguments
 main "$@"`;
 
+  private readonly contractSystemPrompt = `You are an expert Cairo/Starknet smart contract developer. 
+  Modify the following existing YourContract.cairo file based on the user's prompt.
+
+  IMPORTANT REQUIREMENTS:
+  - Keep the basic structure with #[starknet::interface] and #[starknet::contract]
+  - Keep the OwnableComponent integration
+  - Ensure the contract is compatible with Starknet
+  - Return only the Cairo code without any markdown or comments
+  - The contract must be complete and compilable
+  
+  EXISTING CONTRACT STRUCTURE TO REFERENCE:
+  ${existingContractCode}
+  
+  Return ONLY the Cairo code without any markdown formatting or code fence blocks.`;
+
   constructor() {
     this.together = new Together({
       apiKey: process.env.TOGETHER_API_KEY
@@ -148,6 +164,8 @@ main "$@"`;
     - Define any new components within the same file
     - Do not add any new imports
     - Return the complete file content without any markdown formatting
+    - make sure all functions are defined
+    - ONLY USE THE EXISTING IMPORTS, DO NOT USE ANY CLIENT COMPONENT LOGIC LIKE useState or similar.
     
     EXISTING FILE STRUCTURE TO PRESERVE:
     \`\`\`
@@ -239,17 +257,76 @@ main "$@"`;
     }
   }
 
-  async executeSetupScript(indexContent: string): Promise<string> {
-    // Create temporary script file
+  async generateSmartContract(prompt: string): Promise<string> {
+    try {
+      const response = await this.together.chat.completions.create({
+        model: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        messages: [
+          { role: "system", content: this.contractSystemPrompt },
+          { role: "user", content: prompt }
+        ],
+      });
+
+      if (!response.choices?.[0]?.message?.content) {
+        throw new Error('No content generated');
+      }
+
+      // Clean the response
+      let content = response.choices[0].message.content;
+      content = content.replace(/```cairo\s*/, '');
+      content = content.replace(/```\s*$/, '');
+      content = content.trim();
+
+      // Validate basic structure
+      if (!content.includes('#[starknet::interface]')) {
+        throw new Error('Invalid response: Must include interface declaration');
+      }
+
+      if (!content.includes('#[starknet::contract]')) {
+        throw new Error('Invalid response: Must include contract declaration');
+      }
+
+      console.log('Generated smart contract:');
+      console.log('----------------------------------------');
+      console.log(content);
+      console.log('----------------------------------------');
+
+      return content;
+    } catch (error) {
+      console.error('Error in smart contract generation:', error);
+      throw error;
+    }
+  }
+
+  async executeSetupScript(indexContent: string, contractContent: string): Promise<string> {
     const scriptPath = path.join(process.cwd(), 'temp-setup.sh');
     
-    // Create a modified script content with the AI content directly embedded
-    const scriptContent = this.setupScript.replace(
-      'echo "$AI_GENERATED_CONTENT" > "$page_path"',
-      `cat << 'EOF' > "$page_path"
+    // Modify script content to include both UI and contract updates
+    const scriptContent = this.setupScript
+      .replace(
+        'echo "$AI_GENERATED_CONTENT" > "$page_path"',
+        `cat << 'EOF' > "$page_path"
 ${indexContent}
 EOF`
-    );
+      )
+      .replace(
+        'update_ui',
+        `update_contract() {
+          local contract_path="packages/snfoundry/contracts/src/YourContract.cairo"
+          echo -e "\${YELLOW}Updating smart contract with AI generated content...\${NC}"
+          
+          cat << 'EOF' > "$contract_path"
+${contractContent}
+EOF
+          
+          if [ ! -f "$contract_path" ]; then
+              echo -e "\${RED}Failed to update contract file\${NC}"
+              exit 1
+          fi
+        }
+
+        update_ui`
+      );
 
     try {
       console.log('Creating setup script at:', scriptPath);

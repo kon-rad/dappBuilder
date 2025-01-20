@@ -85,13 +85,17 @@ app.post('/api/create-dapp', validateApiKey, async (req: CreateDappRequest, res:
     // Initialize DappGenV1Service
     const dappGenService = new DappGenV1Service();
     
-    // Generate Next.js index content using AI
-    const indexContent = await dappGenService.generateIndexContent(prompt);
+    // Generate both index and contract content using AI
+    const [indexContent, contractContent] = await Promise.all([
+      dappGenService.generateIndexContent(prompt),
+      dappGenService.generateSmartContract(prompt)
+    ]);
+    
     console.log('indexContent: ', indexContent);
+    console.log('contractContent: ', contractContent);
     
-    
-    // Execute bash script with the generated content
-    const result = await dappGenService.executeSetupScript(indexContent);
+    // Execute bash script with both generated contents
+    const result = await dappGenService.executeSetupScript(indexContent, contractContent);
 
     // Update dapp status
     await prisma.dappGen.update({
